@@ -1,0 +1,51 @@
+/** EVSaathi design tokens — night-road teal/amber (ui-design-system.md) */
+export const colors = {
+  bgBase: '#070B14',
+  bgElevated: '#0B1220',
+  bgSunken: '#05080F',
+  borderSubtle: '#1A2438',
+  borderStrong: '#2A3A55',
+  textPrimary: '#F2F5FA',
+  textSecondary: '#A7B0C0',
+  textTertiary: '#6B7589',
+  textInverse: '#0B1220',
+  teal400: '#2EE6A6',
+  teal500: '#1BC48A',
+  teal700: '#0F7A56',
+  amber400: '#F5B942',
+  amber500: '#E09A1F',
+  silver400: '#C5CDD8',
+  success: '#2EE6A6',
+  warning: '#F5B942',
+  danger: '#FF5C6A',
+  info: '#5B8CFF',
+  socTrack: '#1A2438',
+  chipManualBg: 'rgba(245, 185, 66, 0.16)',
+  chipManualFg: '#F5B942',
+  chipEstBg: 'rgba(107, 117, 137, 0.25)',
+  chipEstFg: '#A7B0C0',
+  chipDemoBg: 'rgba(91, 140, 255, 0.16)',
+  chipDemoFg: '#8EB0FF',
+  chipLiveBg: 'rgba(46, 230, 166, 0.16)',
+  chipLiveFg: '#2EE6A6',
+};
+
+export const fonts = {
+  display: 'SpaceGrotesk_600SemiBold',
+  displayBold: 'SpaceGrotesk_700Bold',
+  sans: 'Manrope_400Regular',
+  sansMed: 'Manrope_500Medium',
+  sansSemi: 'Manrope_600SemiBold',
+  mono: 'JetBrainsMono_500Medium',
+  monoSemi: 'JetBrainsMono_600SemiBold',
+};
+
+export const spacing = {
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  5: 20,
+  6: 24,
+  8: 32,
+};

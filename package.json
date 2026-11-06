@@ -1,0 +1,22 @@
+{
+  "name": "evsaathi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EVSaathi — Indian EV companion Phase 1 MVP",
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @evsaathi/api --filter @evsaathi/mobile dev",
+    "dev:api": "pnpm --filter @evsaathi/api dev",
+    "dev:mobile": "pnpm --filter @evsaathi/mobile dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "db:seed": "pnpm --filter @evsaathi/api db:seed",
+    "db:migrate": "pnpm --filter @evsaathi/api db:migrate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "puppeteer-core": "24.2.0"
+  }
+}

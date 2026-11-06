@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Default: SQLite for zero-deps Phase 1 demo.
+// For Postgres: set provider = "postgresql" and DATABASE_URL accordingly.
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  phoneE164       String    @unique
+  phoneVerifiedAt DateTime?
+  email           String?
+  displayName     String?
+  locale          String    @default("en-IN")
+  role            String    @default("user")
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  preferences     Preference?
+  vehicles        Vehicle[]
+  refreshTokens   RefreshToken[]
+  sessions        ChargingSession[]
+  costRecords     CostRecord[]
+  routePlans      RoutePlan[]
+  otpRequests     OtpRequest[]
+}
+
+model OtpRequest {
+  id        String   @id @default(uuid())
+  phoneE164 String
+  codeHash  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  deviceId  String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Preference {
+  userId                   String  @id
+  user                     User    @relation(fields: [userId], references: [id])
+  unitsJson                String  @default("{\"distance\":\"km\",\"energy\":\"kwh\",\"currency\":\"INR\"}")
+  notifyPush               Boolean @default(true)
+  notifySession            Boolean @default(true)
+  preferredConnectorsJson  String  @default("[\"CCS2\",\"Type2\"]")
+  tripStrategyDefault      String  @default("fastest")
+  iceVehicleLabel          String?
+  iceMileageKmPerL         Float?
+  iceFuelPricePaisePerL    Int?
+  theme                    String  @default("dark")
+  updatedAt                DateTime @updatedAt
+}
+
+model VehicleSpec {
+  id                            String   @id @default(uuid())
+  make                          String
+  model                         String
+  variant                       String
+  modelYear                     Int?
+  batteryKwhStated              Float
+  batteryKwhGross               Float?
+  batteryKwhUsable              Float?
+  usableEqualsStated            Boolean  @default(false)
+  batteryChemistry              String?
+  efficiencyWhPerKmCity         Float
+  efficiencyWhPerKmHighway      Float
+  maxAcKw                       Float
+  maxDcKw                       Float
+  connectorAc                   String
+  connectorDc                   String
+  connectorTypesJson            String
+  recommendedChargeLimitPercent Int      @default(80)
+  rangeMidcKm                   Int?
+  rangeAraiKm                   Int?
+  source                        String   @default("manual_admin")
+  sourceMetadataJson            String   @default("{}")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  vehicles                      Vehicle[]
+
+  @@unique([make, model, variant, modelYear])
+}
+
+model Vehicle {
+  id                       String    @id @default(uuid())
+  userId                   String
+  user                     User      @relation(fields: [userId], references: [id])
+  nickname                 String?
+  registrationNo           String?
+  make                     String
+  model                    String
+  variant                  String?
+  modelYear                Int?
+  vehicleSpecId            String
+  vehicleSpec              VehicleSpec @relation(fields: [vehicleSpecId], references: [id])
+  isPrimary                Boolean   @default(true)
+  telemetrySourcePreferred String    @default("manual")
+  oemLinkStatus            String    @default("none")
+  specOverridesJson        String    @default("{}")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  deletedAt                DateTime?
+
+  telemetry         Telemetry[]
+  chargingSessions  ChargingSession[]
+  costRecords       CostRecord[]
+  routePlans        RoutePlan[]
+}
+
+model Telemetry {
+  id           String   @id @default(uuid())
+  vehicleId    String
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id])
+  observedAt   DateTime
+  recordedAt   DateTime @default(now())
+  source       String   @default("manual")
+  socPercent   Float
+  rangeKmEst   Float?
+  odometerKm   Float?
+  lat          Float?
+  lng          Float?
+  confidence   Int      @default(90)
+  createdBy    String?
+}
+
+model Operator {
+  id                 String    @id @default(uuid())
+  code               String    @unique
+  name               String
+  website            String?
+  capabilitiesJson   String    @default("[\"catalog\"]")
+  status             String    @default("active")
+  stations           Station[]
+}
+
+model Station {
+  id                   String    @id @default(uuid())
+  operatorId           String?
+  operator             Operator? @relation(fields: [operatorId], references: [id])
+  externalId           String?
+  name                 String
+  addressLine          String?
+  city                 String?
+  state                String?
+  pincode              String?
+  lat                  Float
+  lng                  Float
+  amenitiesJson        String    @default("[]")
+  accessType           String    @default("public")
+  isOpen24x7           Boolean   @default(false)
+  openingHoursJson     String?
+  status               String    @default("active")
+  source               String    @default("admin")
+  isDemo               Boolean   @default(true)
+  sourceMetadataJson   String    @default("{}")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  connectors        Connector[]
+  tariffs           Tariff[]
+  chargingSessions  ChargingSession[]
+}
+
+model Connector {
+  id            String  @id @default(uuid())
+  stationId     String
+  station       Station @relation(fields: [stationId], references: [id])
+  connectorType String
+  powerKw       Float
+  currentType   String
+  statusNominal String  @default("unknown")
+}
+
+model Tariff {
+  id                String  @id @default(uuid())
+  stationId         String
+  station           Station @relation(fields: [stationId], references: [id])
+  connectorType     String?
+  pricingModel      String  @default("per_kwh")
+  energyRatePaise   Int
+  sessionFeePaise   Int     @default(0)
+  currency          String  @default("INR")
+  source            String  @default("admin")
+}
+
+model ChargingSession {
+  id                 String    @id @default(uuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id])
+  vehicleId          String
+  vehicle            Vehicle   @relation(fields: [vehicleId], references: [id])
+  stationId          String?
+  station            Station?  @relation(fields: [stationId], references: [id])
+  startedAt          DateTime
+  endedAt            DateTime?
+  status             String    @default("completed")
+  energyKwh          Float?
+  maxPowerKw         Float?
+  avgPowerKw         Float?
+  socStart           Float?
+  socEnd             Float?
+  costPaiseEstimated Int?
+  costPaiseActual    Int?
+  source             String    @default("manual")
+  note               String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  costRecords CostRecord[]
+}
+
+model CostRecord {
+  id                 String           @id @default(uuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id])
+  vehicleId          String?
+  vehicle            Vehicle?         @relation(fields: [vehicleId], references: [id])
+  chargingSessionId  String?
+  chargingSession    ChargingSession? @relation(fields: [chargingSessionId], references: [id])
+  category           String
+  amountPaise        Int
+  energyKwh          Float?
+  recordedAt         DateTime
+  note               String?
+  source             String           @default("manual")
+  createdAt          DateTime         @default(now())
+}
+
+model RoutePlan {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  vehicleId             String
+  vehicle               Vehicle  @relation(fields: [vehicleId], references: [id])
+  originLat             Float
+  originLng             Float
+  originLabel           String?
+  destinationLat        Float
+  destinationLng        Float
+  destinationLabel      String?
+  socStartPercent       Float
+  targetSocArrival      Float
+  distanceKm            Float
+  energyKwhEst          Float
+  destSocPercent        Float
+  confidence            Int
+  safetyReservePercent  Float
+  provider              String   @default("heuristic")
+  status                String   @default("draft")
+  stopsJson             String   @default("[]")
+  disclaimer            String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}

@@ -1,0 +1,24 @@
+# Optional Postgres for production-like local runs.
+# Phase 1 default API uses SQLite (no Docker required).
+# Usage: docker compose up -d && DATABASE_URL=postgresql://evsaathi:evsaathi@localhost:5432/evsaathi pnpm db:migrate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evsaathi-postgres
+    environment:
+      POSTGRES_USER: evsaathi
+      POSTGRES_PASSWORD: evsaathi
+      POSTGRES_DB: evsaathi
+    ports:
+      - "5432:5432"
+    volumes:
+      - evsaathi_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evsaathi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  evsaathi_pg:

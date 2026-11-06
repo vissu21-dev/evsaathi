@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "EVSaathi",
+    "slug": "evsaathi",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "evsaathi",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router", "expo-font"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
