@@ -3,3 +3,6 @@ export * from './math';
 export * from './reliability';
 export * from './trip-strategy';
 export * from './range-history';
+export * from './telemetry';
+export * from './ai-tools';
+export * from './advanced-analytics';

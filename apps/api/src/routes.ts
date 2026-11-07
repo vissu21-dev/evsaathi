@@ -21,6 +21,7 @@ import {
   parseJson,
 } from './vehicle-helpers';
 import { phase2Router } from './phase2-routes';
+import { phase3Router } from './phase3-routes';
 import {
   createInAppNotification,
   reliabilitySummary,
@@ -29,16 +30,20 @@ import {
 export const router = Router();
 
 router.use(phase2Router);
+router.use(phase3Router);
 
 router.get('/health', (_req, res) => {
   res.json({
     ok: true,
     product: 'EVSaathi',
-    phase: 2,
-    oem_integration: false,
+    phase: 3,
+    oem_integration: 'demo_stub_only',
+    operator_integration: 'demo_stub_only',
+    ai_assistant: true,
+    ai_actuators: false,
     reliability: 'crowdsource',
     notifications: process.env.FCM_SERVER_KEY ? 'fcm_and_inbox' : 'inapp_inbox_only',
-    note: 'Phase 2 Charging Intelligence — crowdsource ≠ operator telemetry; no OEM live data',
+    note: 'Phase 3 Integrations + AI — demo adapters never claim LIVE; AI hard-denies actuators',
   });
 });
 

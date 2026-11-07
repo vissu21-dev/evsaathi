@@ -28,8 +28,14 @@ type Dash = {
   usable_kwh_remaining: number | null;
   usable_kwh_pack: number;
   consumption_recent_kwh_per_100km: number | null;
-  last_charge: { ended_at: string; energy_kwh: number | null; data_label: string } | null;
-  connectivity: { last_sync_at: string | null; data_label: string; oem_link_status: string };
+  last_charge: { ended_at: string; energy_kwh: number | null; data_label: string; source?: string } | null;
+  connectivity: {
+    last_sync_at: string | null;
+    data_label: string;
+    oem_link_status: string;
+    freshness?: string;
+    live_claim?: boolean;
+  };
   data_label: string;
   range_assumptions: string[];
   labels_note: string;
@@ -112,7 +118,7 @@ export default function HomeScreen() {
         {!hasSoc ? (
           <EmptyState
             title="No SOC yet"
-            body="Enter battery percentage manually. Phase 1 does not invent live OEM SOC."
+            body="Enter battery percentage manually, or sync a consented demo OEM adapter. Never invents LIVE SOC."
           />
         ) : (
           <View style={styles.heroCard}>
@@ -142,6 +148,8 @@ export default function HomeScreen() {
 
         <View style={styles.actions}>
           <Button title="Update SOC" onPress={() => router.push('/log-soc')} />
+          <Button title="Integrations" variant="amber" onPress={() => router.push('/integrations')} />
+          <Button title="AI assistant" variant="ghost" onPress={() => router.push('/assistant')} />
           <Button title="Range calculator" variant="ghost" onPress={() => router.push('/range')} />
         </View>
 
@@ -160,13 +168,14 @@ export default function HomeScreen() {
             label="Last charge"
             value={dash.last_charge?.energy_kwh != null ? `${dash.last_charge.energy_kwh}` : '—'}
             unit="kWh"
-            chip={dash.last_charge ? 'MANUAL' : '—'}
+            chip={dash.last_charge ? chipText(dash.last_charge.data_label) : '—'}
           />
         </View>
 
         {dash.connectivity.last_sync_at ? (
           <Text style={styles.sync}>
-            Last manual update {new Date(dash.connectivity.last_sync_at).toLocaleString('en-IN')}
+            Last observation {dash.connectivity.freshness || new Date(dash.connectivity.last_sync_at).toLocaleString('en-IN')}
+            {dash.connectivity.live_claim ? ' · LIVE authorized' : ' · not LIVE'}
           </Text>
         ) : (
           <Text style={styles.sync}>No telemetry samples yet</Text>
