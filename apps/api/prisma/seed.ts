@@ -242,12 +242,25 @@ async function main() {
     },
   ];
 
-  // Clear and reseed stations for idempotent demo
+  // Clear and reseed Phase 2 dependent rows + stations for idempotent demo
+  await prisma.failureReport.deleteMany();
+  await prisma.stationReview.deleteMany();
+  await prisma.availabilityObservation.deleteMany();
+  await prisma.stationReliability.deleteMany();
   await prisma.tariff.deleteMany();
   await prisma.connector.deleteMany();
   await prisma.station.deleteMany();
 
+  const seededStations: { id: string; name: string; city: string | null }[] = [];
+
   for (const s of stations) {
+    const verifiedHoursAgo = s.name.includes('Lonavala')
+      ? 6
+      : s.name.includes('BKC')
+        ? 18
+        : s.name.includes('Hinjewadi')
+          ? 40
+          : 96;
     const station = await prisma.station.create({
       data: {
         operatorId: ops[s.operator],
@@ -267,9 +280,11 @@ async function main() {
         status: 'active',
         source: 'admin',
         isDemo: true,
+        lastVerifiedAt: new Date(Date.now() - verifiedHoursAgo * 60 * 60 * 1000),
         sourceMetadataJson: JSON.stringify({
           label: 'demo',
           warning: 'Demo catalog — not live operator availability or prices',
+          verification: 'admin_seed_crowdsource_demo',
         }),
         connectors: {
           create: s.connectors.map((c) => ({
@@ -291,11 +306,214 @@ async function main() {
         },
       },
     });
+    seededStations.push({ id: station.id, name: station.name, city: station.city });
     console.log('Seeded station', station.name);
   }
 
+  // Demo reporter users (crowdsource — not operator telemetry)
+  const reporter = await prisma.user.upsert({
+    where: { phoneE164: '+919900000001' },
+    update: { role: 'user', displayName: 'Demo reporter' },
+    create: {
+      phoneE164: '+919900000001',
+      phoneVerifiedAt: new Date(),
+      displayName: 'Demo reporter',
+      role: 'user',
+      preferences: { create: {} },
+    },
+  });
+  const admin = await prisma.user.upsert({
+    where: { phoneE164: '+919900000099' },
+    update: { role: 'admin', displayName: 'EVSaathi Admin' },
+    create: {
+      phoneE164: '+919900000099',
+      phoneVerifiedAt: new Date(),
+      displayName: 'EVSaathi Admin',
+      role: 'admin',
+      preferences: { create: {} },
+    },
+  });
+
+  const lonavala = seededStations.find((s) => s.name.includes('Lonavala'));
+  const bkc = seededStations.find((s) => s.name.includes('BKC'));
+  const andheri = seededStations.find((s) => s.name.includes('Andheri'));
+  const hinje = seededStations.find((s) => s.name.includes('Hinjewadi'));
+
+  const demoReports: Array<{
+    stationId: string;
+    category: string;
+    severity: string;
+    description: string;
+    daysAgo: number;
+  }> = [];
+  if (lonavala) {
+    for (let i = 0; i < 8; i++) {
+      demoReports.push({
+        stationId: lonavala.id,
+        category: 'working',
+        severity: 'low',
+        description: 'CCS2 session started fine (demo crowd report)',
+        daysAgo: i + 1,
+      });
+    }
+    demoReports.push({
+      stationId: lonavala.id,
+      category: 'queue',
+      severity: 'low',
+      description: 'Short queue on weekend evening',
+      daysAgo: 2,
+    });
+  }
+  if (bkc) {
+    for (let i = 0; i < 5; i++) {
+      demoReports.push({
+        stationId: bkc.id,
+        category: 'working',
+        severity: 'low',
+        description: 'Charged OK',
+        daysAgo: i * 2 + 1,
+      });
+    }
+    demoReports.push({
+      stationId: bkc.id,
+      category: 'power_low',
+      severity: 'medium',
+      description: 'Seemed capped below advertised 60 kW',
+      daysAgo: 3,
+    });
+  }
+  if (andheri) {
+    demoReports.push(
+      {
+        stationId: andheri.id,
+        category: 'charger_dead',
+        severity: 'high',
+        description: 'Both CCS2 unresponsive (demo failure)',
+        daysAgo: 1,
+      },
+      {
+        stationId: andheri.id,
+        category: 'payment_failed',
+        severity: 'medium',
+        description: 'App payment declined twice',
+        daysAgo: 2,
+      },
+      {
+        stationId: andheri.id,
+        category: 'started_failed',
+        severity: 'high',
+        description: 'Cable locked, session never started',
+        daysAgo: 4,
+      },
+    );
+  }
+  if (hinje) {
+    for (let i = 0; i < 4; i++) {
+      demoReports.push({
+        stationId: hinje.id,
+        category: 'working',
+        severity: 'low',
+        description: 'Good session',
+        daysAgo: i + 2,
+      });
+    }
+  }
+
+  for (const r of demoReports) {
+    await prisma.failureReport.create({
+      data: {
+        stationId: r.stationId,
+        userId: reporter.id,
+        category: r.category,
+        severity: r.severity,
+        description: r.description,
+        status: r.category === 'charger_dead' ? 'confirmed' : 'open',
+        reportedAt: new Date(Date.now() - r.daysAgo * 24 * 60 * 60 * 1000),
+        mediaUrlsJson: JSON.stringify([]),
+        sourceMetadataJson: JSON.stringify({ seed: true, crowdsource: true }),
+      },
+    });
+  }
+
+  // Extra crowd observations so confidence can clear the ≥25 display gate
+  for (const s of seededStations) {
+    const n =
+      s.name.includes('Lonavala') ||
+      s.name.includes('BKC') ||
+      s.name.includes('Hinjewadi') ||
+      s.name.includes('Andheri')
+        ? 10
+        : 2;
+    for (let i = 0; i < n; i++) {
+      await prisma.availabilityObservation.create({
+        data: {
+          stationId: s.id,
+          status: s.name.includes('Andheri')
+            ? i < 6
+              ? 'faulted'
+              : 'offline'
+            : i % 3 === 0
+              ? 'occupied'
+              : 'available',
+          source: 'crowd',
+          reporterUserId: reporter.id,
+          confidence: 55,
+          observedAt: new Date(Date.now() - (i + 1) * 10 * 60 * 60 * 1000),
+        },
+      });
+    }
+  }
+
+  if (lonavala) {
+    await prisma.stationReview.create({
+      data: {
+        stationId: lonavala.id,
+        userId: reporter.id,
+        rating: 5,
+        body: 'Reliable highway stop (demo review)',
+      },
+    });
+  }
+  if (bkc) {
+    await prisma.stationReview.create({
+      data: {
+        stationId: bkc.id,
+        userId: reporter.id,
+        rating: 4,
+        body: 'Usually fine (demo review)',
+      },
+    });
+  }
+  if (hinje) {
+    await prisma.stationReview.create({
+      data: {
+        stationId: hinje.id,
+        userId: reporter.id,
+        rating: 4,
+        body: 'Good IT-park stop (demo)',
+      },
+    });
+  }
+  if (andheri) {
+    await prisma.stationReview.create({
+      data: {
+        stationId: andheri.id,
+        userId: reporter.id,
+        rating: 2,
+        body: 'Frequent downtime (demo)',
+      },
+    });
+  }
+
+  // Recompute reliability via formula (inline to avoid circular import in seed)
+  const { recomputeAllReliability } = await import('../src/reliability-service');
+  const job = await recomputeAllReliability();
+  console.log('Reliability recompute', job);
+
   console.log('Seeded vehicle spec', xev9s.make, xev9s.model, xev9s.variant);
+  console.log('Admin demo phone +919900000099 (OTP 123456) role=admin');
   console.log('Demo OTP for auth stub: 123456 (also printed on request in server logs)');
+  void admin;
 }
 
 main()

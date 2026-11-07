@@ -14,6 +14,15 @@ type RangeResult = {
   assumptions: string[];
   data_label: string;
   usable_note?: string;
+  efficiency_model?: {
+    efficiencyWhPerKm: number;
+    catalogWhPerKm: number;
+    historyWhPerKm: number | null;
+    historyWeight: number;
+    sampleCount: number;
+    sampleDistanceKm: number;
+  };
+  model?: string;
 };
 
 export default function RangeScreen() {
@@ -21,6 +30,7 @@ export default function RangeScreen() {
   const [soc, setSoc] = useState('70');
   const [eff, setEff] = useState('185');
   const [result, setResult] = useState<RangeResult | null>(null);
+  const [advanced, setAdvanced] = useState<RangeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,15 +39,25 @@ export default function RangeScreen() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api<RangeResult>(`/vehicles/${vehicleId}/range`, {
-        method: 'POST',
-        body: JSON.stringify({
-          soc_percent: Number(soc),
-          efficiency_wh_per_km: Number(eff),
-          safety_reserve_percent: 10,
+      const [basic, hist] = await Promise.all([
+        api<RangeResult>(`/vehicles/${vehicleId}/range`, {
+          method: 'POST',
+          body: JSON.stringify({
+            soc_percent: Number(soc),
+            efficiency_wh_per_km: Number(eff),
+            safety_reserve_percent: 10,
+          }),
         }),
-      });
-      setResult(res);
+        api<RangeResult>(`/vehicles/${vehicleId}/range/advanced`, {
+          method: 'POST',
+          body: JSON.stringify({
+            soc_percent: Number(soc),
+            safety_reserve_percent: 10,
+          }),
+        }),
+      ]);
+      setResult(basic);
+      setAdvanced(hist);
     } catch (e: any) {
       setError(e.message || 'Range calc failed');
     } finally {
@@ -47,14 +67,14 @@ export default function RangeScreen() {
 
   return (
     <Screen>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         <Text style={styles.title}>Range calculator</Text>
-        <Banner text="Documented estimate model — always labeled EST. Not a live OEM range reading." />
+        <Banner text="Phase 2: catalog estimate + history-weighted blend. Always EST. — not live OEM range." />
         {error ? <Banner tone="warn" text={error} /> : null}
 
         <Field label="SOC %" value={soc} onChangeText={setSoc} keyboardType="decimal-pad" />
         <Field
-          label="Efficiency Wh/km"
+          label="Catalog efficiency Wh/km (basic)"
           value={eff}
           onChangeText={setEff}
           keyboardType="decimal-pad"
@@ -64,16 +84,41 @@ export default function RangeScreen() {
         {result ? (
           <View style={styles.card}>
             <View style={styles.row}>
-              <Text style={styles.big}>{result.rangeKmWithReserve} km</Text>
+              <Text style={styles.label}>Basic (catalog)</Text>
               <Chip label="EST." tone="est" />
             </View>
+            <Text style={styles.big}>{result.rangeKmWithReserve} km</Text>
             <Text style={styles.meta}>
-              Without reserve {result.rangeKm} km · usable at SOC {result.usableKwhAtSoc} kWh ·{' '}
-              {result.kwhPer100Km} kWh/100km · confidence {result.confidence}%
+              Without reserve {result.rangeKm} km · usable {result.usableKwhAtSoc} kWh · confidence{' '}
+              {result.confidence}%
             </Text>
-            {result.usable_note ? <Banner text={result.usable_note} /> : null}
+          </View>
+        ) : null}
+
+        {advanced ? (
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.label}>History-weighted (P2)</Text>
+              <Chip label="EST." tone="est" />
+            </View>
+            <Text style={styles.big}>{advanced.rangeKmWithReserve} km</Text>
+            <Text style={styles.meta}>
+              Without reserve {advanced.rangeKm} km · confidence {advanced.confidence}%
+            </Text>
+            {advanced.efficiency_model ? (
+              <Text style={styles.meta}>
+                Blend {advanced.efficiency_model.efficiencyWhPerKm} Wh/km (catalog{' '}
+                {advanced.efficiency_model.catalogWhPerKm}
+                {advanced.efficiency_model.historyWhPerKm != null
+                  ? ` · history ${advanced.efficiency_model.historyWhPerKm}`
+                  : ' · no history yet'}
+                ) · weight {advanced.efficiency_model.historyWeight} · samples{' '}
+                {advanced.efficiency_model.sampleCount} ({advanced.efficiency_model.sampleDistanceKm}{' '}
+                km)
+              </Text>
+            ) : null}
             <Text style={styles.label}>Assumptions</Text>
-            {result.assumptions.map((a) => (
+            {advanced.assumptions.map((a) => (
               <Text key={a} style={styles.meta}>
                 · {a}
               </Text>
@@ -86,7 +131,12 @@ export default function RangeScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontFamily: fonts.sansSemi, color: colors.textPrimary, fontSize: 20, marginBottom: 12 },
+  title: {
+    fontFamily: fonts.display,
+    color: colors.textPrimary,
+    fontSize: 24,
+    marginBottom: 12,
+  },
   card: {
     marginTop: 16,
     borderWidth: 1,
@@ -97,7 +147,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  big: { fontFamily: fonts.monoSemi, color: colors.teal400, fontSize: 32 },
-  meta: { fontFamily: fonts.sans, color: colors.textTertiary, fontSize: 12, lineHeight: 18 },
-  label: { fontFamily: fonts.sansSemi, color: colors.textSecondary, marginTop: 8 },
+  big: { fontFamily: fonts.monoSemi, color: colors.teal400, fontSize: 36 },
+  label: { fontFamily: fonts.sansSemi, color: colors.textPrimary, marginTop: 8 },
+  meta: { fontFamily: fonts.sans, color: colors.textTertiary, fontSize: 12 },
 });
