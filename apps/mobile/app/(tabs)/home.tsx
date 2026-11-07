@@ -106,12 +106,15 @@ export default function HomeScreen() {
           <Chip label={chipText(dash.data_label)} tone={labelTone(dash.data_label)} />
         </View>
 
-        <Text style={styles.vehicle}>
-          {dash.nickname || `${dash.make} ${dash.model}`}
-        </Text>
-        <Text style={styles.meta}>
-          {dash.make} {dash.model} {dash.variant} · OEM link: {dash.connectivity.oem_link_status}
-        </Text>
+        <Pressable onPress={() => router.push('/garage')}>
+          <Text style={styles.vehicle}>
+            {dash.nickname || `${dash.make} ${dash.model}`}
+          </Text>
+          <Text style={styles.meta}>
+            {dash.make} {dash.model} {dash.variant} · OEM link: {dash.connectivity.oem_link_status} · tap to
+            switch garage
+          </Text>
+        </Pressable>
 
         <Banner text={dash.labels_note} />
 

@@ -6,3 +6,6 @@ export * from './range-history';
 export * from './telemetry';
 export * from './ai-tools';
 export * from './advanced-analytics';
+export * from './reputation';
+export * from './battery-health';
+export * from './subscriptions';

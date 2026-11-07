@@ -14,7 +14,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.pad}>
         <BrandMark />
         <SectionTitle>Profile</SectionTitle>
-        <Text style={styles.sub}>Account, integrations consent, AI assistant — Phase 3 honesty labels.</Text>
+        <Text style={styles.sub}>Garage, community, subscriptions, fleet stub — Phase 4 ecosystem.</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>Signed in</Text>
@@ -31,14 +31,18 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Button title="Integrations & consent" onPress={() => router.push('/integrations')} />
-        <Button title="AI assistant" variant="amber" onPress={() => router.push('/assistant')} />
+        <Button title="Multi-brand garage" onPress={() => router.push('/garage')} />
+        <Button title="Community" variant="amber" onPress={() => router.push('/community')} />
+        <Button title="Subscriptions (stub)" variant="ghost" onPress={() => router.push('/subscription')} />
+        <Button title="Fleet analytics stub" variant="ghost" onPress={() => router.push('/fleet')} />
+        <Button title="Integrations & consent" variant="ghost" onPress={() => router.push('/integrations')} />
+        <Button title="AI assistant" variant="ghost" onPress={() => router.push('/assistant')} />
         <Button title="Notification inbox" variant="ghost" onPress={() => router.push('/notifications')} />
 
         <Banner text={`API: ${getApiBase()}`} />
         <Banner
           tone="warn"
-          text="Phase 3: demo OEM/operator stubs + explainable AI. Still out of scope: fabricated LIVE SOC/availability, AI actuators, community, subscriptions."
+          text="Phase 4: community + reputation + health gates + stub subscriptions/fleet. No fabricated LIVE partners, no scraping, no AI actuators."
         />
 
         <Button title="Sign out" variant="ghost" onPress={() => signOut()} />
