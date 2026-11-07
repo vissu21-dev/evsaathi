@@ -1,42 +1,42 @@
-# EVSaathi — Phase 2 Charging Intelligence
+# EVSaathi — Phase 4 EV Ecosystem
 
 **Brand:** EVSaathi (locked)  
 **Promise:** Know your real range before you go.  
-**Scope:** Indian EV companion that works **without OEM telematics**. Crowdsource reliability ≠ operator telemetry. Never invents live SOC, charger availability, prices, or battery health.
+**Scope:** Community for verified owners, reputation, multi-brand garage depth, uncertainty-gated battery health, subscription entitlements (stub payments), partnership/operator registry polish, fleet + business analytics stubs. Still never invents LIVE SOC/availability/partners. AI never issues actuators.
 
-## Phase 2 Must
+## Phase 4 Must / Should
 
 | ID | Feature | Status |
 |----|---------|--------|
-| P2-M01 | Reliability 0–100 + confidence + last verified | Done (documented weights, crowdsource) |
-| P2-M02 | Owner reports + photos + anti-spam rate limits | Done |
-| P2-M03 | Verification timestamp UX | Done |
-| P2-M04 | Alternative chargers on trip/failure | Done |
-| P2-M05 | Trip strategies Fastest / Lowest cost / Most reliable | Done |
-| P2-M06 | Session analytics (manual dense series) | Done |
-| P2-M07 | History-weighted range prediction | Done |
-| P2-M08 | Notifications (in-app inbox; FCM if `FCM_SERVER_KEY`) | Done |
-| P2-M09 | Admin failure triage + reliability quarantine | Done (API + minimal HTML) |
+| P4-M01 | EV community (spaces, posts, photos, vehicle rooms) | Done |
+| P4-M02 | Reputation (ties Phase 2 verified reports) | Done |
+| P4-M03 | Multi-brand catalog depth + garage switch UX | Done |
+| P4-M04 | Battery health with uncertainty gates | Done |
+| P4-M05 | Community moderation tooling | Done |
+| P4-S01 | Subscription entitlements (stub payments) | Done |
+| P4-S02 | Partnership / operator registry polish | Done |
+| P4-S03 | Fleet org stub | Done |
+| P4-S04 | Business analytics stub + CSV | Done |
 
-## What’s real vs demo
+## What’s real vs stub
 
 | Data | Status |
 |------|--------|
 | Auth OTP | Secure **stub** — demo code `123456` |
-| Vehicle specs | Seed catalog (XEV 9S Pack 3 79 kWh + others) |
-| SOC / sessions / costs | **Manual** user entry |
-| Reliability | **Crowdsource** formula — never labeled as operator live |
-| Stations | **Demo-labeled** seeded metro catalog |
-| Notifications | In-app inbox by default; FCM only if key present |
-| OEM / LIVE availability / AI / community | **Not in Phase 2** |
+| Vehicle specs | Expanded multi-brand seed catalog |
+| Community | Owner posts + moderation; crowdsource ≠ LIVE |
+| Reputation | Derived from moderated reports + useful votes |
+| Battery health | **Gated** — no numeric SOH without history |
+| Subscriptions / fleet | Entitlements + org stub — payment provider **stub** |
+| Partnerships | Prospect/demo registry — `live_claim` always false |
+| LIVE OEM / operator availability / scraping / AI actuators | **Forbidden** |
 
 ## Monorepo
 
 ```
 apps/api          Express + Prisma API (`/v1/*`) — SQLite by default
 apps/mobile       Expo (React Native) + web — EVSaathi UI
-packages/shared   Shared math (range, reliability, trip strategy) + Vitest
-docker-compose.yml  Optional Postgres 16
+packages/shared   Math + telemetry + AI ACL + reputation + health + Vitest
 ```
 
 ## Quick start
@@ -53,17 +53,20 @@ pnpm dev:mobile       # Expo web :8081
 
 ### Demo login
 
-1. Phone: `9876543210` (or `+919876543210`) → OTP `123456`
-2. Admin triage: phone `9900000099` (`+919900000099`) → OTP `123456` (role=admin)
-3. Explore Charging → station detail (score, reports, alternatives), Trips (strategies), Profile → Notifications
+1. Phone: `9876543210` → OTP `123456`
+2. Admin: `9900000099` → OTP `123456`
+3. Profile → Community · Garage · Subscriptions · Fleet
+4. Admin HTML: `GET /v1/admin/community` (bearer)
 
-### Admin triage
+### Key Phase 4 APIs
 
-```bash
-# After admin login, use bearer token:
-curl -s http://127.0.0.1:4000/v1/admin/failure-reports -H "Authorization: Bearer $TOKEN"
-# Minimal HTML: GET /v1/admin/triage (same auth)
-```
+- `GET /v1/community/spaces` · `POST /v1/community/posts`
+- `GET /v1/me/reputation`
+- `GET /v1/garage` · `POST /v1/garage/:id/activate`
+- `GET /v1/vehicles/:id/battery-health`
+- `GET /v1/subscriptions/plans` · `POST /v1/me/subscription/checkout`
+- `GET /v1/fleet/orgs` · `GET /v1/fleet/orgs/:id/analytics`
+- `GET /v1/partnerships/programs` · `GET /v1/admin/operators`
 
 ## Tests
 
@@ -72,19 +75,15 @@ pnpm --filter @evsaathi/shared test
 pnpm --filter @evsaathi/api test
 ```
 
-Covers range, cost, trip energy, **reliability scoring**, **trip strategy selection**, history-weighted efficiency.
-
 ## Environment
 
 | Var | Default | Notes |
 |-----|---------|-------|
-| `DATABASE_URL` | `file:./dev.db` | Prisma |
-| `JWT_SECRET` | dev secret | Change for shared deploy |
-| `DEMO_OTP` | `123456` | OTP stub |
+| `DATABASE_URL` | `file:./dev.db` | SQLite |
+| `JWT_SECRET` | dev secret | Rotate in prod |
 | `PORT` | `4000` | API |
-| `FCM_SERVER_KEY` | unset | When set, push channel + inbox; otherwise inbox only |
-| `EXPO_PUBLIC_API_URL` | `http://127.0.0.1:4000/v1` | Mobile/web |
+| `FCM_SERVER_KEY` | unset | Optional push |
 
-## Reliability formula (summary)
+## Prior phases
 
-Weights (redistributed when operator feed / reviews absent): success 0.25, failure 0.20, power_truth 0.10, availability 0.15, operator 0.10, freshness 0.10, access_review 0.10. Confidence gate ≥25 to show score; low crowd samples (`<3`) cap score at 75. See shared `computeReliabilityScore` and project `docs/database-schema.md` §6.
+Phases 1–3 remain on the stack: MVP → charging intelligence → integrations/AI. Phase 4 builds on `cursor/phase-3-integrations-ai`.

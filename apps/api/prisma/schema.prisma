@@ -18,6 +18,8 @@ model User {
   locale          String    @default("en-IN")
   role            String    @default("user")
   status          String    @default("active")
+  /// free | plus | family | fleet — entitlements stub (P4)
+  subscriptionTier String  @default("free")
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
@@ -33,6 +35,14 @@ model User {
   notifications   Notification[]
   pushTokens      PushToken[]
   stationReviews  StationReview[]
+  consents        ConsentRecord[]
+  aiAudits        AiToolAudit[]
+  reputation      UserReputation?
+  communityPosts  CommunityPost[]
+  communityVotes  CommunityVote[]
+  subscriptions   UserSubscription[]
+  fleetMemberships FleetMembership[]
+  moderatedPosts  CommunityPost[] @relation("PostModerator")
 }
 
 model OtpRequest {
@@ -116,6 +126,8 @@ model Vehicle {
   isPrimary                Boolean   @default(true)
   telemetrySourcePreferred String    @default("manual")
   oemLinkStatus            String    @default("none")
+  oemAdapterId             String?
+  operatorAdapterId        String?
   specOverridesJson        String    @default("{}")
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
@@ -125,6 +137,7 @@ model Vehicle {
   chargingSessions  ChargingSession[]
   costRecords       CostRecord[]
   routePlans        RoutePlan[]
+  consents          ConsentRecord[]
 }
 
 model Telemetry {
@@ -150,7 +163,15 @@ model Operator {
   website            String?
   capabilitiesJson   String    @default("[\"catalog\"]")
   status             String    @default("active")
+  /// demo | prospect | contracted | live — never claim live without contract
+  partnershipStatus  String    @default("demo")
+  partnershipNotes   String?
+  featuredCorridorJson String @default("[]")
+  adapterId          String?
+  contactEmail       String?
+  updatedAt          DateTime  @updatedAt @default(now())
   stations           Station[]
+  partnershipPrograms PartnershipProgram[]
 }
 
 model Station {
@@ -389,4 +410,214 @@ model ReliabilityJob {
   note        String?
   startedAt   DateTime @default(now())
   finishedAt  DateTime?
+}
+
+// ── Phase 3: integrations, consent, AI audit, circuit breakers ──
+
+model ConsentRecord {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  vehicleId     String?
+  vehicle       Vehicle?  @relation(fields: [vehicleId], references: [id])
+  adapterId     String
+  purpose       String
+  policyVersion String
+  granted       Boolean
+  grantedAt     DateTime?
+  revokedAt     DateTime?
+  metadataJson  String    @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, adapterId])
+  @@index([vehicleId])
+}
+
+model AdapterHealth {
+  adapterId      String   @id
+  kind           String
+  displayName    String
+  mode           String   @default("demo")
+  status         String   @default("healthy")
+  circuitState   String   @default("closed")
+  failureCount   Int      @default(0)
+  successCount   Int      @default(0)
+  lastSuccessAt  DateTime?
+  lastFailureAt  DateTime?
+  lastError      String?
+  openedAt       DateTime?
+  metadataJson   String   @default("{}")
+  updatedAt      DateTime @updatedAt
+}
+
+model AiToolAudit {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  tool       String
+  allowed    Boolean
+  reason     String
+  argsJson   String   @default("{}")
+  resultJson String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([tool, allowed])
+}
+
+// ── Phase 4: community, reputation, subscriptions, fleet, partnerships ──
+
+model UserReputation {
+  userId               String   @id
+  user                 User     @relation(fields: [userId], references: [id])
+  score                Int      @default(0)
+  tier                 String   @default("newcomer")
+  verifiedReportCount  Int      @default(0)
+  helpfulPostCount     Int      @default(0)
+  usefulVotesReceived  Int      @default(0)
+  rejectedCount        Int      @default(0)
+  spamFlags            Int      @default(0)
+  componentsJson       String   @default("{}")
+  updatedAt            DateTime @updatedAt
+}
+
+model CommunitySpace {
+  id              String   @id @default(uuid())
+  slug            String   @unique
+  title           String
+  description     String?
+  /// general | vehicle_model | highway | tips
+  kind            String   @default("general")
+  make            String?
+  model           String?
+  variant         String?
+  isVerifiedOwnersOnly Boolean @default(true)
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  posts           CommunityPost[]
+}
+
+model CommunityPost {
+  id              String   @id @default(uuid())
+  spaceId         String
+  space           CommunitySpace @relation(fields: [spaceId], references: [id])
+  authorId        String
+  author          User     @relation(fields: [authorId], references: [id])
+  /// station_experience | trip_share | range_share | cost_share | tip | photo | discussion
+  postType        String
+  title           String
+  body            String
+  stationId       String?
+  vehicleMake     String?
+  vehicleModel    String?
+  vehicleVariant  String?
+  /// Optional structured payload (range km, cost paise, trip distance, etc.)
+  metricsJson     String   @default("{}")
+  photoUrlsJson   String   @default("[]")
+  usefulCount     Int      @default(0)
+  /// pending | published | rejected | hidden
+  moderationStatus String  @default("published")
+  moderationNotes String?
+  moderatedById   String?
+  moderatedBy     User?    @relation("PostModerator", fields: [moderatedById], references: [id])
+  moderatedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  votes CommunityVote[]
+
+  @@index([spaceId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([moderationStatus])
+  @@index([postType])
+}
+
+model CommunityVote {
+  id        String   @id @default(uuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  /// useful | report_spam
+  kind      String   @default("useful")
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId, kind])
+  @@index([userId])
+}
+
+model UserSubscription {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  tier              String
+  status            String   @default("active")
+  paymentProvider   String   @default("stub")
+  externalRef       String?
+  startedAt         DateTime @default(now())
+  endsAt            DateTime?
+  metadataJson      String   @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+model FleetOrg {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  status       String   @default("stub_active")
+  note         String   @default("Fleet MVP stub — not a live telematics fleet product")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  members      FleetMembership[]
+  vehicles     FleetVehicle[]
+}
+
+model FleetMembership {
+  id        String   @id @default(uuid())
+  orgId     String
+  org       FleetOrg @relation(fields: [orgId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  /// owner | admin | driver | viewer
+  role      String   @default("viewer")
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+}
+
+model FleetVehicle {
+  id        String   @id @default(uuid())
+  orgId     String
+  org       FleetOrg @relation(fields: [orgId], references: [id])
+  label     String
+  make      String
+  model     String
+  variant   String?
+  /// Linked personal vehicle id when consented — optional
+  vehicleId String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model PartnershipProgram {
+  id              String   @id @default(uuid())
+  operatorId      String?
+  operator        Operator? @relation(fields: [operatorId], references: [id])
+  code            String   @unique
+  title           String
+  /// featured_corridor | reliability_partner | directory_only | prospect
+  kind            String   @default("prospect")
+  status          String   @default("draft")
+  corridorJson    String   @default("[]")
+  liveClaim       Boolean  @default(false)
+  note            String   @default("No live partnership claimed until contracted")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

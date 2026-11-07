@@ -43,11 +43,48 @@ type SessionAnalytics = {
   note: string;
 };
 
+type Advanced = {
+  richness: string;
+  sample_count: number;
+  adapter_sample_count: number;
+  mean_charge_power_kw: number | null;
+  peak_charge_power_kw: number | null;
+  energy_per_session_kwh: number | null;
+  estimated_cycles: number | null;
+  efficiency_trend_kwh_per_100km: number | null;
+  notes: string[];
+  data_label: string;
+};
+
+type BatteryHealth = {
+  status: string;
+  soh_percent: number | null;
+  uncertainty_pp: number | null;
+  soh_low_percent: number | null;
+  soh_high_percent: number | null;
+  sample_count: number;
+  session_count: number;
+  history_span_days: number | null;
+  trend: { direction: string; efficiency_slope_wh_per_km_per_30d: number | null };
+  display: { headline: string; detail: string; show_numeric_soh: boolean };
+  gates: {
+    min_sessions: number;
+    min_samples: number;
+    min_span_days: number;
+    sessions_met: boolean;
+    samples_met: boolean;
+    span_met: boolean;
+  };
+  provenance_note: string;
+};
+
 export default function AnalyticsScreen() {
   const { vehicleId } = useSession();
   const [data, setData] = useState<Analytics | null>(null);
   const [costs, setCosts] = useState<CostSummary | null>(null);
   const [sessionA, setSessionA] = useState<SessionAnalytics | null>(null);
+  const [advanced, setAdvanced] = useState<Advanced | null>(null);
+  const [health, setHealth] = useState<BatteryHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,13 +92,17 @@ export default function AnalyticsScreen() {
     if (!vehicleId) return;
     setError(null);
     try {
-      const [a, c, sessions] = await Promise.all([
+      const [a, c, sessions, adv, bh] = await Promise.all([
         api<Analytics>(`/vehicles/${vehicleId}/analytics/consumption?period=week`),
         api<CostSummary>(`/costs/summary?vehicle_id=${vehicleId}`),
         api<{ data: SessionRow[] }>('/sessions'),
+        api<Advanced>(`/vehicles/${vehicleId}/analytics/advanced`),
+        api<BatteryHealth>(`/vehicles/${vehicleId}/battery-health`),
       ]);
       setData(a);
       setCosts(c);
+      setAdvanced(adv);
+      setHealth(bh);
       if (sessions.data[0]) {
         const sa = await api<SessionAnalytics>(`/sessions/${sessions.data[0].id}/analytics`);
         setSessionA(sa);
@@ -209,7 +250,65 @@ export default function AnalyticsScreen() {
           <EmptyState title="No session analytics" body="Log a charge session to inspect power metrics." />
         )}
 
-        <Banner text="Battery health / SOH is not shown — never invent degradation without evidence." />
+        <SectionTitle>Advanced telemetry analytics</SectionTitle>
+        {advanced ? (
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.stat}>Richness: {advanced.richness}</Text>
+              <Chip
+                label={
+                  advanced.data_label === 'recently_synchronized'
+                    ? 'SYNCED'
+                    : advanced.data_label === 'manually_entered'
+                      ? 'MANUAL'
+                      : 'EST.'
+                }
+                tone={advanced.data_label === 'recently_synchronized' ? 'synced' : 'manual'}
+              />
+            </View>
+            <Text style={styles.meta}>
+              Samples {advanced.sample_count} · adapter {advanced.adapter_sample_count} · mean power{' '}
+              {advanced.mean_charge_power_kw ?? '—'} kW · peak {advanced.peak_charge_power_kw ?? '—'} kW
+            </Text>
+            <Text style={styles.meta}>
+              Cycles ~{advanced.estimated_cycles ?? '—'} · efficiency trend{' '}
+              {advanced.efficiency_trend_kwh_per_100km ?? '—'} kWh/100km · energy/session{' '}
+              {advanced.energy_per_session_kwh ?? '—'} kWh
+            </Text>
+            {advanced.notes.map((n, i) => (
+              <Text key={i} style={styles.meta}>
+                {n}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {health ? (
+          <View style={styles.block}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.label}>Battery health (gated)</Text>
+              <Chip
+                label={health.display.show_numeric_soh ? 'EST.' : 'HIDDEN'}
+                tone={health.display.show_numeric_soh ? 'est' : 'demo'}
+              />
+            </View>
+            <Text style={styles.metricVal}>{health.display.headline}</Text>
+            <Text style={styles.meta}>{health.display.detail}</Text>
+            {health.display.show_numeric_soh ? (
+              <Text style={styles.meta}>
+                Band {health.soh_low_percent}% – {health.soh_high_percent}% (±{health.uncertainty_pp} pp)
+              </Text>
+            ) : null}
+            <Text style={styles.meta}>
+              Status {health.status} · sessions {health.session_count}/{health.gates.min_sessions} · samples{' '}
+              {health.sample_count}/{health.gates.min_samples} · span {health.history_span_days ?? '—'}d /{' '}
+              {health.gates.min_span_days}d · trend {health.trend.direction}
+            </Text>
+            <Banner text={health.provenance_note} />
+          </View>
+        ) : (
+          <Banner text="Battery health / SOH is not shown — never invent degradation without evidence." />
+        )}
       </ScrollView>
     </Screen>
   );
@@ -242,6 +341,15 @@ const styles = StyleSheet.create({
   pad: { padding: spacing[4], paddingBottom: 48 },
   sub: { fontFamily: fonts.sans, color: colors.textSecondary, marginBottom: 12 },
   label: { fontFamily: fonts.sansMed, color: colors.textSecondary },
+  block: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    padding: 12,
+    marginBottom: 16,
+    gap: 4,
+  },
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',

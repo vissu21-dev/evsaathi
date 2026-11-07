@@ -31,9 +31,9 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/', (_req, res) => {
   res.json({
     product: 'EVSaathi',
-    version: '0.2.0-phase2',
+    version: '0.4.0-phase4',
     docs: '/v1/health',
-    note: 'Phase 2 Charging Intelligence — crowdsource reliability, not OEM live integration',
+    note: 'Phase 4 EV Ecosystem — community, reputation, battery health gates, stub subscriptions/fleet; no LIVE partner fabrication',
   });
 });
 
@@ -48,7 +48,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`EVSaathi API listening on http://0.0.0.0:${port}`);
-  console.log('Phase 2: reliability + reports + strategies. OTP stub: 123456');
+  console.log('Phase 4: community + reputation + health gates + stub subscriptions/fleet. OTP stub: 123456');
   console.log(
     process.env.FCM_SERVER_KEY
       ? 'FCM_SERVER_KEY present — push + inbox'

@@ -41,7 +41,7 @@ async function main() {
     },
   });
 
-  // Extra catalog entries for multi-brand config support
+  // Extra catalog entries for multi-brand garage depth (P4-M03)
   const extras = [
     {
       make: 'Tata',
@@ -59,6 +59,36 @@ async function main() {
       rangeMidcKm: 502,
     },
     {
+      make: 'Tata',
+      model: 'Nexon EV',
+      variant: '45 kWh',
+      modelYear: 2024,
+      batteryKwhStated: 45,
+      batteryKwhUsable: 41.5,
+      efficiencyWhPerKmCity: 140,
+      efficiencyWhPerKmHighway: 160,
+      maxAcKw: 7.2,
+      maxDcKw: 60,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 465,
+    },
+    {
+      make: 'Tata',
+      model: 'Harrier EV',
+      variant: '65 kWh',
+      modelYear: 2025,
+      batteryKwhStated: 65,
+      batteryKwhUsable: 60,
+      efficiencyWhPerKmCity: 155,
+      efficiencyWhPerKmHighway: 175,
+      maxAcKw: 7.2,
+      maxDcKw: 120,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 550,
+    },
+    {
       make: 'MG',
       model: 'Windsor',
       variant: 'EV',
@@ -72,6 +102,111 @@ async function main() {
       connectorAc: 'Type2',
       connectorDc: 'CCS2',
       rangeMidcKm: 331,
+    },
+    {
+      make: 'MG',
+      model: 'ZS EV',
+      variant: '50.3 kWh',
+      modelYear: 2024,
+      batteryKwhStated: 50.3,
+      batteryKwhUsable: 46.5,
+      efficiencyWhPerKmCity: 155,
+      efficiencyWhPerKmHighway: 175,
+      maxAcKw: 11,
+      maxDcKw: 76,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 461,
+    },
+    {
+      make: 'Mahindra',
+      model: 'XEV 9e',
+      variant: 'Pack 3',
+      modelYear: 2025,
+      batteryKwhStated: 79,
+      batteryKwhUsable: 72.68,
+      efficiencyWhPerKmCity: 160,
+      efficiencyWhPerKmHighway: 180,
+      maxAcKw: 11,
+      maxDcKw: 180,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 542,
+    },
+    {
+      make: 'Mahindra',
+      model: 'BE 6',
+      variant: 'Pack 3',
+      modelYear: 2025,
+      batteryKwhStated: 79,
+      batteryKwhUsable: 72.68,
+      efficiencyWhPerKmCity: 155,
+      efficiencyWhPerKmHighway: 175,
+      maxAcKw: 11,
+      maxDcKw: 175,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 560,
+    },
+    {
+      make: 'Hyundai',
+      model: 'Creta Electric',
+      variant: '42 kWh',
+      modelYear: 2025,
+      batteryKwhStated: 42,
+      batteryKwhUsable: 39,
+      efficiencyWhPerKmCity: 145,
+      efficiencyWhPerKmHighway: 165,
+      maxAcKw: 11,
+      maxDcKw: 50,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 390,
+    },
+    {
+      make: 'Kia',
+      model: 'EV6',
+      variant: 'GT-Line LR',
+      modelYear: 2024,
+      batteryKwhStated: 77.4,
+      batteryKwhUsable: 74,
+      efficiencyWhPerKmCity: 160,
+      efficiencyWhPerKmHighway: 180,
+      maxAcKw: 11,
+      maxDcKw: 239,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 528,
+    },
+    {
+      make: 'BYD',
+      model: 'Atto 3',
+      variant: 'Extended',
+      modelYear: 2024,
+      batteryKwhStated: 60.48,
+      batteryKwhUsable: 56,
+      efficiencyWhPerKmCity: 150,
+      efficiencyWhPerKmHighway: 170,
+      maxAcKw: 7,
+      maxDcKw: 88,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 521,
+    },
+    {
+      make: 'BYD',
+      model: 'Seal',
+      variant: 'Premium',
+      modelYear: 2025,
+      batteryKwhStated: 82.56,
+      batteryKwhUsable: 78,
+      efficiencyWhPerKmCity: 145,
+      efficiencyWhPerKmHighway: 165,
+      maxAcKw: 11,
+      maxDcKw: 150,
+      connectorAc: 'Type2',
+      connectorDc: 'CCS2',
+      rangeMidcKm: 650,
     },
   ];
 
@@ -102,17 +237,26 @@ async function main() {
     { code: 'tatapower', name: 'Tata Power EZ Charge (demo)', website: 'https://ezcharge.tatapower.com' },
     { code: 'pulse', name: 'Jio-bp pulse (demo)', website: 'https://www.jio-bp.in' },
     { code: 'chargezone', name: 'ChargeZone (demo)', website: 'https://www.chargezone.com' },
+    { code: 'zeon', name: 'Zeon (demo)', website: 'https://zeoncharging.com' },
+    { code: 'bolt', name: 'Bolt.Earth (demo)', website: 'https://bolt.earth' },
   ];
 
   const ops: Record<string, string> = {};
   for (const o of operators) {
     const row = await prisma.operator.upsert({
       where: { code: o.code },
-      update: { name: o.name },
+      update: {
+        name: o.name,
+        partnershipStatus: 'demo',
+        partnershipNotes: 'Demo directory seed — not a live contracted partner',
+      },
       create: {
         ...o,
         capabilitiesJson: JSON.stringify(['catalog']),
         status: 'active',
+        partnershipStatus: 'demo',
+        partnershipNotes: 'Demo directory seed — not a live contracted partner',
+        featuredCorridorJson: JSON.stringify([]),
       },
     });
     ops[o.code] = row.id;
@@ -510,7 +654,185 @@ async function main() {
   const job = await recomputeAllReliability();
   console.log('Reliability recompute', job);
 
+  // ── Phase 4: community spaces, sample posts, partnerships, fleet stub ──
+  const spaces = [
+    {
+      slug: 'general',
+      title: 'EVSaathi Lounge',
+      description: 'Tips, costs, and highway stories from verified owners',
+      kind: 'general',
+    },
+    {
+      slug: 'mahindra-xev-9s',
+      title: 'Mahindra XEV 9S',
+      description: 'Pack-specific range, charging, and cabin tips',
+      kind: 'vehicle_model',
+      make: 'Mahindra',
+      model: 'XEV 9S',
+      variant: 'Pack 3',
+    },
+    {
+      slug: 'tata-nexon-ev',
+      title: 'Tata Nexon EV',
+      description: 'Owner range and station experiences',
+      kind: 'vehicle_model',
+      make: 'Tata',
+      model: 'Nexon EV',
+    },
+    {
+      slug: 'mumbai-pune-corridor',
+      title: 'Mumbai–Pune corridor',
+      description: 'Highway stops, queues, and fallback chargers',
+      kind: 'highway',
+    },
+  ];
+
+  const spaceIds: Record<string, string> = {};
+  for (const s of spaces) {
+    const row = await prisma.communitySpace.upsert({
+      where: { slug: s.slug },
+      update: { title: s.title, description: s.description },
+      create: {
+        slug: s.slug,
+        title: s.title,
+        description: s.description,
+        kind: s.kind,
+        make: s.make,
+        model: s.model,
+        variant: s.variant,
+        isVerifiedOwnersOnly: true,
+      },
+    });
+    spaceIds[s.slug] = row.id;
+  }
+
+  const samplePosts = [
+    {
+      space: 'mahindra-xev-9s',
+      type: 'range_share',
+      title: 'Highway 18–19 kWh/100 km @ 90',
+      body: 'Pune expressway, AC on, two adults. Manual SOC log — EST. range matched dashboard within ~8%.',
+      make: 'Mahindra',
+      model: 'XEV 9S',
+      variant: 'Pack 3',
+      metrics: { kwh_per_100km: 18.5, speed_kmh: 90 },
+    },
+    {
+      space: 'mumbai-pune-corridor',
+      type: 'station_experience',
+      title: 'Lonavala CCS2 — started OK',
+      body: 'Demo crowd tip: both CCS2 online mid-week evening, short queue. Crowdsource ≠ operator LIVE.',
+      make: 'Mahindra',
+      model: 'XEV 9S',
+      metrics: { wait_min: 5 },
+      stationId: lonavala?.id,
+    },
+    {
+      space: 'general',
+      type: 'cost_share',
+      title: 'Home AC vs public DC this month',
+      body: 'Home ~₹2.4/km vs public DC ~₹4.1/km on my logs. Your tariff will differ — share yours.',
+      make: 'Tata',
+      model: 'Nexon EV',
+      metrics: { home_paise_per_km: 240, public_paise_per_km: 410 },
+    },
+    {
+      space: 'general',
+      type: 'trip_share',
+      title: 'Mumbai → Nashik with one stop',
+      body: 'Left at 72% SOC, one Statiq stop planned. Estimates only — never guarantee arrival.',
+      make: 'MG',
+      model: 'Windsor',
+      metrics: { distance_km: 170, stops: 1, start_soc: 72 },
+    },
+  ];
+
+  for (const p of samplePosts) {
+    const existing = await prisma.communityPost.findFirst({
+      where: { title: p.title, authorId: reporter.id },
+    });
+    if (existing) continue;
+    await prisma.communityPost.create({
+      data: {
+        spaceId: spaceIds[p.space],
+        authorId: reporter.id,
+        postType: p.type,
+        title: p.title,
+        body: p.body,
+        stationId: p.stationId ?? null,
+        vehicleMake: p.make,
+        vehicleModel: p.model,
+        vehicleVariant: p.variant ?? null,
+        metricsJson: JSON.stringify(p.metrics),
+        photoUrlsJson: JSON.stringify([]),
+        usefulCount: 2,
+        moderationStatus: 'published',
+      },
+    });
+  }
+
+  // Seed votes so reputation has helpful signals
+  await prisma.communityVote.deleteMany({ where: { userId: admin.id } });
+  const seededPosts = await prisma.communityPost.findMany({ where: { authorId: reporter.id } });
+  for (const post of seededPosts.slice(0, 3)) {
+    await prisma.communityVote.upsert({
+      where: {
+        postId_userId_kind: { postId: post.id, userId: admin.id, kind: 'useful' },
+      },
+      create: { postId: post.id, userId: admin.id, kind: 'useful' },
+      update: {},
+    });
+  }
+
+  const { recomputeUserReputation } = await import('../src/phase4-routes');
+  await recomputeUserReputation(reporter.id);
+
+  await prisma.partnershipProgram.upsert({
+    where: { code: 'mumbai-pune-featured-demo' },
+    update: {},
+    create: {
+      code: 'mumbai-pune-featured-demo',
+      title: 'Mumbai–Pune featured corridor (prospect)',
+      kind: 'featured_corridor',
+      status: 'draft',
+      operatorId: ops.statiq,
+      corridorJson: JSON.stringify([
+        { from: 'Mumbai', to: 'Pune', note: 'Prospect only — not a live partner deal' },
+      ]),
+      liveClaim: false,
+      note: 'Prospect corridor pack — no LIVE availability claimed',
+    },
+  });
+
+  await prisma.operator.update({
+    where: { code: 'statiq' },
+    data: {
+      partnershipStatus: 'prospect',
+      partnershipNotes: 'Prospect for featured corridor — still demo catalog, live_claim=false',
+      featuredCorridorJson: JSON.stringify([{ name: 'Mumbai–Pune', status: 'prospect' }]),
+    },
+  });
+
+  const fleet = await prisma.fleetOrg.upsert({
+    where: { slug: 'demo-sme-fleet' },
+    update: {},
+    create: {
+      name: 'Demo SME Fleet',
+      slug: 'demo-sme-fleet',
+      status: 'stub_active',
+      note: 'Fleet MVP stub — not a live telematics fleet product',
+      members: { create: { userId: admin.id, role: 'owner' } },
+      vehicles: {
+        create: [
+          { label: 'Pool-1', make: 'Mahindra', model: 'XEV 9S', variant: 'Pack 3' },
+          { label: 'Pool-2', make: 'Tata', model: 'Nexon EV', variant: '45 kWh' },
+        ],
+      },
+    },
+  });
+
   console.log('Seeded vehicle spec', xev9s.make, xev9s.model, xev9s.variant);
+  console.log('Phase 4 spaces', Object.keys(spaceIds).length, 'fleet', fleet.slug);
   console.log('Admin demo phone +919900000099 (OTP 123456) role=admin');
   console.log('Demo OTP for auth stub: 123456 (also printed on request in server logs)');
   void admin;

@@ -1,6 +1,8 @@
 import {
   estimateRange,
+  freshnessAgeLabel,
   resolveUsableKwh,
+  sourceToDataLabel,
   type DataSourceLabel,
 } from '@evsaathi/shared';
 import { prisma } from './prisma';
@@ -102,13 +104,22 @@ export async function buildDashboard(vehicleId: string, userId: string) {
   }
 
   const soc = latest?.socPercent ?? null;
+  const adapterMode =
+    latest?.source === 'oem' || latest?.source === 'telematics' || latest?.source === 'operator_session'
+      ? vehicle.oemLinkStatus === 'demo_linked' || vehicle.oemLinkStatus === 'linked'
+        ? ('demo' as const)
+        : ('offline' as const)
+      : undefined;
   const dataLabel: DataSourceLabel = latest
-    ? latest.source === 'manual'
-      ? 'manually_entered'
-      : latest.source === 'import'
-        ? 'imported'
-        : 'manually_entered'
+    ? sourceToDataLabel(latest.source, {
+        mode: adapterMode,
+        observedAt: latest.observedAt,
+      })
     : 'estimated';
+
+  // Hard rule: demo/simulated OEM never surfaces as LIVE even if source=oem
+  const safeLabel: DataSourceLabel =
+    dataLabel === 'live' && vehicle.oemLinkStatus !== 'live_linked' ? 'recently_synchronized' : dataLabel;
 
   const range =
     soc != null
@@ -120,6 +131,10 @@ export async function buildDashboard(vehicleId: string, userId: string) {
             : spec.efficiencyWhPerKmHighway,
         })
       : null;
+
+  const lastChargeLabel: DataSourceLabel = lastCharge
+    ? sourceToDataLabel(lastCharge.source)
+    : 'manually_entered';
 
   return {
     vehicle_id: vehicle.id,
@@ -141,18 +156,29 @@ export async function buildDashboard(vehicleId: string, userId: string) {
           ended_at: lastCharge.endedAt,
           energy_kwh: lastCharge.energyKwh,
           cost_paise: lastCharge.costPaiseActual ?? lastCharge.costPaiseEstimated,
-          data_label: 'manually_entered' as DataSourceLabel,
+          data_label: lastChargeLabel === 'live' ? 'recently_synchronized' : lastChargeLabel,
+          source: lastCharge.source,
         }
       : null,
     charging: { active: false },
     battery_health: null,
     connectivity: {
       last_sync_at: latest?.observedAt ?? null,
+      freshness: freshnessAgeLabel(latest?.observedAt ?? null),
       oem_link_status: vehicle.oemLinkStatus,
-      data_label: dataLabel,
+      oem_adapter_id: vehicle.oemAdapterId,
+      operator_adapter_id: vehicle.operatorAdapterId,
+      telemetry_source_preferred: vehicle.telemetrySourcePreferred,
+      data_label: safeLabel,
+      live_claim: vehicle.oemLinkStatus === 'live_linked',
     },
     range_assumptions: range?.assumptions ?? [],
-    data_label: dataLabel,
-    labels_note: 'No OEM live telemetry in Phase 1 — values are MANUAL or EST.',
+    data_label: safeLabel,
+    labels_note:
+      vehicle.oemLinkStatus === 'demo_linked'
+        ? 'Demo OEM stub linked — SYNCED/simulated only. Never LIVE without an authorized feed.'
+        : vehicle.oemLinkStatus === 'live_linked'
+          ? 'Authorized live vehicle feed connected.'
+          : 'Manual/import path active. Demo OEM/operator adapters available with consent — still not LIVE.',
   };
 }
