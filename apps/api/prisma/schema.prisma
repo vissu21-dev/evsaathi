@@ -29,6 +29,10 @@ model User {
   costRecords     CostRecord[]
   routePlans      RoutePlan[]
   otpRequests     OtpRequest[]
+  failureReports  FailureReport[]
+  notifications   Notification[]
+  pushTokens      PushToken[]
+  stationReviews  StationReview[]
 }
 
 model OtpRequest {
@@ -150,32 +154,42 @@ model Operator {
 }
 
 model Station {
-  id                   String    @id @default(uuid())
-  operatorId           String?
-  operator             Operator? @relation(fields: [operatorId], references: [id])
-  externalId           String?
-  name                 String
-  addressLine          String?
-  city                 String?
-  state                String?
-  pincode              String?
-  lat                  Float
-  lng                  Float
-  amenitiesJson        String    @default("[]")
-  accessType           String    @default("public")
-  isOpen24x7           Boolean   @default(false)
-  openingHoursJson     String?
-  status               String    @default("active")
-  source               String    @default("admin")
-  isDemo               Boolean   @default(true)
-  sourceMetadataJson   String    @default("{}")
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  deletedAt            DateTime?
+  id                     String    @id @default(uuid())
+  operatorId             String?
+  operator               Operator? @relation(fields: [operatorId], references: [id])
+  externalId             String?
+  name                   String
+  addressLine            String?
+  city                   String?
+  state                  String?
+  pincode                String?
+  lat                    Float
+  lng                    Float
+  amenitiesJson          String    @default("[]")
+  accessType             String    @default("public")
+  isOpen24x7             Boolean   @default(false)
+  openingHoursJson       String?
+  status                 String    @default("active")
+  source                 String    @default("admin")
+  isDemo                 Boolean   @default(true)
+  sourceMetadataJson     String    @default("{}")
+  reliabilityScore       Int?
+  reliabilityConfidence  Int?
+  reliabilityUpdatedAt   DateTime?
+  lastVerifiedAt         DateTime?
+  quarantineUntil        DateTime?
+  quarantineReason       String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
-  connectors        Connector[]
-  tariffs           Tariff[]
-  chargingSessions  ChargingSession[]
+  connectors           Connector[]
+  tariffs              Tariff[]
+  chargingSessions     ChargingSession[]
+  failureReports       FailureReport[]
+  reliabilitySnapshot  StationReliability?
+  reviews              StationReview[]
+  observations         AvailabilityObservation[]
 }
 
 model Connector {
@@ -220,6 +234,7 @@ model ChargingSession {
   costPaiseActual    Int?
   source             String    @default("manual")
   note               String?
+  seriesJson         String    @default("[]")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -263,9 +278,115 @@ model RoutePlan {
   confidence            Int
   safetyReservePercent  Float
   provider              String   @default("heuristic")
+  strategy              String   @default("fastest")
   status                String   @default("draft")
   stopsJson             String   @default("[]")
+  alternativesJson      String   @default("[]")
   disclaimer            String
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+// ── Phase 2: reliability, reports, notifications ──
+
+model FailureReport {
+  id               String   @id @default(uuid())
+  stationId        String
+  station          Station  @relation(fields: [stationId], references: [id])
+  connectorId      String?
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  reportedAt       DateTime @default(now())
+  category         String
+  severity         String   @default("medium")
+  description      String?
+  mediaUrlsJson    String   @default("[]")
+  status           String   @default("open")
+  moderationNotes  String?
+  sourceMetadataJson String @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([stationId, reportedAt])
+  @@index([userId, reportedAt])
+  @@index([status])
+}
+
+model StationReliability {
+  stationId        String   @id
+  station          Station  @relation(fields: [stationId], references: [id])
+  score            Int?
+  confidence       Int
+  componentsJson   String   @default("{}")
+  sampleSizesJson  String   @default("{}")
+  weightsJson      String   @default("{}")
+  display          String   @default("insufficient_data")
+  computedAt       DateTime @default(now())
+}
+
+model StationReview {
+  id        String   @id @default(uuid())
+  stationId String
+  station   Station  @relation(fields: [stationId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  body      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([stationId, userId])
+}
+
+model AvailabilityObservation {
+  id             String   @id @default(uuid())
+  stationId      String
+  station        Station  @relation(fields: [stationId], references: [id])
+  observedAt     DateTime @default(now())
+  status         String
+  source         String   @default("crowd")
+  reporterUserId String?
+  confidence     Int      @default(50)
+  createdAt      DateTime @default(now())
+
+  @@index([stationId, observedAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  channel   String    @default("inapp")
+  type      String
+  title     String
+  body      String
+  payloadJson String  @default("{}")
+  status    String    @default("queued")
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  readAt    DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, token])
+}
+
+model ReliabilityJob {
+  id          String   @id @default(uuid())
+  status      String   @default("completed")
+  stationsTouched Int  @default(0)
+  note        String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
 }

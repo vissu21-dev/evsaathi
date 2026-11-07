@@ -6,6 +6,10 @@ import {
   estimateRange,
   estimateTripEnergy,
   haversineKm,
+  selectStopsForStrategy,
+  strategyComparison,
+  type StationCandidate,
+  type TripStrategy,
 } from '@evsaathi/shared';
 import { prisma } from './prisma';
 import { requestOtp, requireAuth, verifyOtp } from './auth';
@@ -16,16 +20,25 @@ import {
   getVehicleForUser,
   parseJson,
 } from './vehicle-helpers';
+import { phase2Router } from './phase2-routes';
+import {
+  createInAppNotification,
+  reliabilitySummary,
+} from './reliability-service';
 
 export const router = Router();
+
+router.use(phase2Router);
 
 router.get('/health', (_req, res) => {
   res.json({
     ok: true,
     product: 'EVSaathi',
-    phase: 1,
+    phase: 2,
     oem_integration: false,
-    note: 'Phase 1 MVP — manual + demo stations only',
+    reliability: 'crowdsource',
+    notifications: process.env.FCM_SERVER_KEY ? 'fcm_and_inbox' : 'inapp_inbox_only',
+    note: 'Phase 2 Charging Intelligence — crowdsource ≠ operator telemetry; no OEM live data',
   });
 });
 
@@ -478,8 +491,8 @@ router.get('/stations/search', async (req, res) => {
         compatible,
         tariff_hint_paise_per_kwh: s.tariffs[0]?.energyRatePaise ?? null,
         availability_summary: 'unknown',
-        reliability: null,
-        reliability_note: 'Reliability score is Phase 2 — not shown as operator telemetry',
+        reliability: reliabilitySummary(s),
+        last_verified_at: s.lastVerifiedAt?.toISOString() ?? null,
         open_now: s.isOpen24x7,
         amenities: parseJson(s.amenitiesJson, [] as string[]),
         data_freshness: 'manually_entered',
@@ -495,7 +508,7 @@ router.get('/stations/search', async (req, res) => {
     data,
     next_cursor: null,
     banner: data.some((d) => d.is_demo)
-      ? 'Demo stations — catalog is seeded for Phase 1; not live operator availability or prices'
+      ? 'Demo stations — catalog is seeded; not live operator availability or prices. Reliability is crowdsource, not operator telemetry.'
       : null,
   });
 });
@@ -522,7 +535,7 @@ router.get('/stations/:id', async (req, res) => {
     amenities: parseJson(s.amenitiesJson, []),
     access_type: s.accessType,
     is_open_24x7: s.isOpen24x7,
-    opening_hours: parseJson(s.openingHoursJson, null),
+    opening_hours: parseJson(s.openingHoursJson ?? 'null', null),
     connectors: s.connectors.map((c) => ({
       id: c.id,
       type: c.connectorType,
@@ -539,8 +552,10 @@ router.get('/stations/:id', async (req, res) => {
       data_label: 'manually_entered',
       note: s.isDemo ? 'Demo tariff seed' : undefined,
     })),
-    reliability: null,
-    reliability_note: 'Phase 2 — insufficient verified data; not fabricated',
+    reliability: reliabilitySummary(s),
+    last_verified_at: s.lastVerifiedAt?.toISOString() ?? null,
+    verification_note:
+      'Last verified = trusted crowd report or admin check — not OEM/operator live ping',
     nav: {
       google_maps: `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`,
     },
@@ -684,6 +699,24 @@ router.post('/sessions', requireAuth, async (req, res) => {
     },
   });
 
+  await createInAppNotification({
+    userId: req.user!.id,
+    type: 'charge_complete',
+    title: 'Charge session logged',
+    body: `Recorded ${Math.round(energy * 10) / 10} kWh · ₹${cost.totalCostInr} (manual — not live OEM)`,
+    payload: { session_id: session.id },
+  });
+
+  if (body.data.soc_end < 20) {
+    await createInAppNotification({
+      userId: req.user!.id,
+      type: 'low_battery',
+      title: 'Still low after charge',
+      body: `Ending SOC ${body.data.soc_end}% is below 20%. Consider a longer session next time.`,
+      payload: { vehicle_id: v.id, soc_percent: body.data.soc_end },
+    });
+  }
+
   res.status(201).json({
     id: session.id,
     energy_kwh: energy,
@@ -788,7 +821,7 @@ router.post('/home-chargers/estimate', requireAuth, async (req, res) => {
   });
 });
 
-// ── Trip planner ──────────────────────────────────────
+// ── Trip planner (P2 strategies) ──────────────────────
 router.post('/trips/plan', requireAuth, async (req, res) => {
   const body = z
     .object({
@@ -807,7 +840,8 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
       target_soc_arrival_percent: z.number().min(0).max(100).default(20),
       cabin_ac: z.boolean().optional(),
       load_kg: z.number().min(0).optional(),
-      strategy: z.enum(['fastest', 'lowest_cost', 'most_reliable']).optional(),
+      strategy: z.enum(['fastest', 'lowest_cost', 'most_reliable']).default('fastest'),
+      max_detour_km: z.number().positive().optional(),
     })
     .safeParse(req.body);
   if (!body.success) return sendError(res, 400, 'VALIDATION', 'Invalid trip', body.error.flatten());
@@ -815,6 +849,8 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
   const v = await getVehicleForUser(body.data.vehicle_id, req.user!.id);
   if (!v) return sendError(res, 404, 'NOT_FOUND', 'Vehicle not found');
   const spec = effectiveSpec(v);
+  const strategy = body.data.strategy as TripStrategy;
+  const maxDetour = body.data.max_detour_km ?? 80;
 
   const straight = haversineKm(body.data.origin, body.data.destination);
   // Heuristic road factor ~1.25 when Maps Directions unavailable
@@ -829,34 +865,54 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
     loadKg: body.data.load_kg,
   });
 
-  const stops: Array<Record<string, unknown>> = [];
-  if (trip.needsCharge) {
-    // Suggest demo stations near midpoint corridor
-    const mid = {
-      lat: (body.data.origin.lat + body.data.destination.lat) / 2,
-      lng: (body.data.origin.lng + body.data.destination.lng) / 2,
-    };
-    const stations = await prisma.station.findMany({
-      where: { deletedAt: null, isDemo: true },
-      include: { connectors: true, tariffs: true },
-    });
-    const candidates = stations
-      .map((s) => ({
-        s,
-        d: haversineKm(mid, { lat: s.lat, lng: s.lng }),
-        dc: s.connectors.filter((c) => c.currentType === 'dc').sort((a, b) => b.powerKw - a.powerKw)[0],
-      }))
-      .filter((x) => x.dc && x.d < 80)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 2);
+  const mid = {
+    lat: (body.data.origin.lat + body.data.destination.lat) / 2,
+    lng: (body.data.origin.lng + body.data.destination.lng) / 2,
+  };
 
+  const stations = await prisma.station.findMany({
+    where: {
+      deletedAt: null,
+      status: 'active',
+      OR: [{ quarantineUntil: null }, { quarantineUntil: { lt: new Date() } }],
+    },
+    include: { connectors: true, tariffs: true },
+  });
+
+  const byId = new Map(stations.map((s) => [s.id, s]));
+  const stationCandidates: StationCandidate[] = [];
+  for (const s of stations) {
+    const dc = s.connectors
+      .filter((c) => c.currentType === 'dc')
+      .sort((a, b) => b.powerKw - a.powerKw)[0];
+    const best = dc ?? [...s.connectors].sort((a, b) => b.powerKw - a.powerKw)[0];
+    if (!best) continue;
+    const detourKm = haversineKm(mid, { lat: s.lat, lng: s.lng });
+    if (detourKm > maxDetour) continue;
+    stationCandidates.push({
+      id: s.id,
+      name: s.name,
+      detourKm,
+      maxPowerKw: best.powerKw,
+      energyRatePaise: s.tariffs[0]?.energyRatePaise ?? 1800,
+      reliabilityScore: s.reliabilityScore,
+      reliabilityConfidence: s.reliabilityConfidence ?? 0,
+      isDemo: s.isDemo,
+    });
+  }
+
+  const ranked = selectStopsForStrategy(stationCandidates, strategy, 3);
+  const comparison = strategyComparison(stationCandidates);
+
+  const stops: Array<Record<string, unknown>> = [];
+  if (trip.needsCharge || distanceKm > 120) {
     let seq = 1;
     let soc = body.data.soc_start_percent;
-    for (const c of candidates) {
-      const leg = haversineKm(
-        seq === 1 ? body.data.origin : mid,
-        { lat: c.s.lat, lng: c.s.lng },
-      ) * 1.2;
+    const pickCount = trip.needsCharge ? Math.min(2, ranked.length) : Math.min(1, ranked.length);
+    for (const c of ranked.slice(0, pickCount)) {
+      const st = byId.get(c.id)!;
+      const leg =
+        haversineKm(seq === 1 ? body.data.origin : mid, { lat: st.lat, lng: st.lng }) * 1.2;
       const legTrip = estimateTripEnergy({
         distanceKm: leg,
         socStartPercent: soc,
@@ -872,30 +928,57 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
         socStart: arrive,
         socTarget: depart,
         usableKwh: spec.usableKwh,
-        chargerKw: c.dc!.powerKw,
+        chargerKw: c.maxPowerKw,
       });
       const cost = estimateChargeCost({
         energyKwh: Math.max(0, chargeKwh),
-        energyRatePaisePerKwh: c.s.tariffs[0]?.energyRatePaise ?? 1800,
+        energyRatePaisePerKwh: c.energyRatePaise,
       });
       stops.push({
         seq,
         kind: 'charge',
-        station_id: c.s.id,
-        name: c.s.name,
-        is_demo: c.s.isDemo,
+        station_id: c.id,
+        name: c.name,
+        is_demo: c.isDemo,
         soc_arrive: Math.round(arrive * 10) / 10,
         soc_depart: depart,
         charge_kwh_est: Math.round(Math.max(0, chargeKwh) * 1000) / 1000,
         dwell_min: dwell.durationMin,
         cost_paise_est: cost.totalCostPaise,
-        reliability: null,
+        reliability: reliabilitySummary(st),
+        strategy_score: c.strategy_score,
+        rank_reason: c.rank_reason,
+        last_verified_at: st.lastVerifiedAt?.toISOString() ?? null,
       });
       soc = depart;
       seq += 1;
-      if (!trip.needsCharge) break;
     }
   }
+
+  // Alternatives: top picks under other strategies (not already in stops)
+  const stopIds = new Set(stops.map((s) => s.station_id as string));
+  const alternatives = (['fastest', 'lowest_cost', 'most_reliable'] as TripStrategy[])
+    .filter((s) => s !== strategy)
+    .map((s) => {
+      const pick = comparison[s];
+      if (!pick || stopIds.has(pick.id)) return null;
+      return {
+        strategy: s,
+        station_id: pick.id,
+        name: pick.name,
+        rank_reason: pick.rank_reason,
+        strategy_score: pick.strategy_score,
+        reliability_score: pick.reliabilityScore,
+        energy_rate_paise: pick.energyRatePaise,
+        max_power_kw: pick.maxPowerKw,
+        is_demo: pick.isDemo,
+      };
+    })
+    .filter(Boolean);
+
+  // Duration heuristic: base drive + charge dwell; fastest gets slight credit for power
+  const dwellTotal = stops.reduce((a, s) => a + (Number(s.dwell_min) || 0), 0);
+  const durationMin = Math.round(distanceKm / (strategy === 'fastest' ? 65 : 55) * 60 + dwellTotal);
 
   const plan = await prisma.routePlan.create({
     data: {
@@ -915,8 +998,10 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
       confidence: trip.confidence,
       safetyReservePercent: trip.safetyReservePercent,
       provider: 'heuristic',
+      strategy,
       status: 'draft',
       stopsJson: JSON.stringify(stops),
+      alternativesJson: JSON.stringify(alternatives),
       disclaimer: trip.disclaimer,
     },
   });
@@ -924,18 +1009,30 @@ router.post('/trips/plan', requireAuth, async (req, res) => {
   res.json({
     route_plan_id: plan.id,
     distance_km: Math.round(distanceKm * 10) / 10,
-    duration_min: Math.round((distanceKm / 60) * 60), // ~60 km/h heuristic
+    duration_min: durationMin,
     energy_kwh_est: trip.energyKwhEst,
     dest_soc_percent: trip.destSocPercent,
     confidence: trip.confidence,
     safety_reserve_percent: trip.safetyReservePercent,
     disclaimer: trip.disclaimer,
     stops,
-    alternatives: [],
+    alternatives,
+    strategy_comparison: {
+      fastest: comparison.fastest
+        ? { station_id: comparison.fastest.id, name: comparison.fastest.name }
+        : null,
+      lowest_cost: comparison.lowest_cost
+        ? { station_id: comparison.lowest_cost.id, name: comparison.lowest_cost.name }
+        : null,
+      most_reliable: comparison.most_reliable
+        ? { station_id: comparison.most_reliable.id, name: comparison.most_reliable.name }
+        : null,
+    },
     provider: 'heuristic',
-    provider_banner: 'Maps Directions API key not configured — using haversine × 1.25 road factor',
+    provider_banner:
+      'Maps Directions API key not configured — using haversine × 1.25 road factor. Reliability is crowdsource, not operator telemetry.',
     data_label: 'estimated',
-    strategy: body.data.strategy ?? 'fastest',
+    strategy,
   });
 });
 

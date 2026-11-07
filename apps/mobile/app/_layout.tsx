@@ -84,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="range" options={{ headerShown: true, title: 'Range calculator', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
           <Stack.Screen name="log-session" options={{ headerShown: true, title: 'Log charge', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
           <Stack.Screen name="log-soc" options={{ headerShown: true, title: 'Update SOC', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
+          <Stack.Screen name="notifications" options={{ headerShown: true, title: 'Notifications', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
         </Stack>
       </AuthGate>
     </SessionProvider>

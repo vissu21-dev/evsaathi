@@ -33,10 +33,21 @@ type CostSummary = {
   total: { amount_paise: number; energy_kwh: number; count: number };
 };
 
+type SessionRow = { id: string; energy_kwh: number | null; started_at: string; station: { name: string } | null };
+type SessionAnalytics = {
+  avg_power_kw: number | null;
+  max_power_kw: number | null;
+  duration_min: number | null;
+  power_curve: { t: number; power_kw: number; soc?: number }[];
+  data_label: string;
+  note: string;
+};
+
 export default function AnalyticsScreen() {
   const { vehicleId } = useSession();
   const [data, setData] = useState<Analytics | null>(null);
   const [costs, setCosts] = useState<CostSummary | null>(null);
+  const [sessionA, setSessionA] = useState<SessionAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,12 +55,19 @@ export default function AnalyticsScreen() {
     if (!vehicleId) return;
     setError(null);
     try {
-      const [a, c] = await Promise.all([
+      const [a, c, sessions] = await Promise.all([
         api<Analytics>(`/vehicles/${vehicleId}/analytics/consumption?period=week`),
         api<CostSummary>(`/costs/summary?vehicle_id=${vehicleId}`),
+        api<{ data: SessionRow[] }>('/sessions'),
       ]);
       setData(a);
       setCosts(c);
+      if (sessions.data[0]) {
+        const sa = await api<SessionAnalytics>(`/sessions/${sessions.data[0].id}/analytics`);
+        setSessionA(sa);
+      } else {
+        setSessionA(null);
+      }
     } catch (e: any) {
       setError(e.message || 'Analytics failed');
     } finally {
@@ -153,7 +171,45 @@ export default function AnalyticsScreen() {
           <EmptyState title="No costs" body="Log sessions to see spend." />
         )}
 
-        <Banner text="Battery health / SOH is not shown — Phase 1 never invents degradation." />
+        <SectionTitle>Session analytics</SectionTitle>
+        {sessionA ? (
+          <View style={styles.card}>
+            <Text style={styles.stat}>
+              Avg {sessionA.avg_power_kw ?? '—'} kW · peak {sessionA.max_power_kw ?? '—'} kW ·{' '}
+              {sessionA.duration_min ?? '—'} min
+            </Text>
+            <Text style={styles.meta}>{sessionA.note}</Text>
+            <Chip label={sessionA.data_label === 'manually_entered' ? 'MANUAL' : 'EST.'} tone="manual" />
+            {sessionA.power_curve?.length ? (
+              <View style={[styles.chart, { marginTop: 10 }]}>
+                {sessionA.power_curve.slice(0, 12).map((p, i) => (
+                  <View key={i} style={styles.barCol}>
+                    <View
+                      style={[
+                        styles.bar,
+                        {
+                          height: Math.max(
+                            4,
+                            (p.power_kw / Math.max(1, sessionA.max_power_kw || 1)) * 100,
+                          ),
+                        },
+                      ]}
+                    />
+                    <Text style={styles.barLabel}>{Math.round(p.t)}m</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.meta}>
+                No dense power series yet — PATCH /sessions/:id/series to add manual curve points.
+              </Text>
+            )}
+          </View>
+        ) : (
+          <EmptyState title="No session analytics" body="Log a charge session to inspect power metrics." />
+        )}
+
+        <Banner text="Battery health / SOH is not shown — never invent degradation without evidence." />
       </ScrollView>
     </Screen>
   );

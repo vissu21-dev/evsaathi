@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Banner, BrandMark, Button, Chip, Screen, SectionTitle } from '../../src/components';
 import { useSession } from '../../src/session';
 import { getApiBase } from '../../src/api';
@@ -6,13 +7,14 @@ import { colors, fonts, spacing } from '../../src/theme';
 
 export default function ProfileScreen() {
   const { user, vehicleId, signOut } = useSession();
+  const router = useRouter();
 
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
       <ScrollView contentContainerStyle={styles.pad}>
         <BrandMark />
         <SectionTitle>Profile</SectionTitle>
-        <Text style={styles.sub}>Account, vehicle source honesty, Phase 1 limits.</Text>
+        <Text style={styles.sub}>Account, notifications, Phase 2 honesty labels.</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>Signed in</Text>
@@ -29,10 +31,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        <Button title="Notification inbox" onPress={() => router.push('/notifications')} />
+
         <Banner text={`API: ${getApiBase()}`} />
         <Banner
           tone="warn"
-          text="Out of scope in Phase 1: AI assistant, community, live OEM SOC, reliability score as operator telemetry, remote charge control."
+          text="Phase 2: crowdsource reliability ≠ operator telemetry. Still out of scope: AI assistant, community, live OEM SOC, remote charge control, fabricated LIVE availability."
         />
 
         <Button title="Sign out" variant="ghost" onPress={() => signOut()} />

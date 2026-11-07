@@ -25,6 +25,8 @@ type Station = {
   compatible: boolean;
   is_demo: boolean;
   open_now: boolean;
+  last_verified_at?: string | null;
+  reliability?: { score: number | null; confidence: number | null } | null;
 };
 
 type SessionRow = {
@@ -152,6 +154,15 @@ export default function ChargingScreen() {
                   ? `₹${(s.tariff_hint_paise_per_kwh / 100).toFixed(0)}/kWh`
                   : '—'}{' '}
                 · MANUAL/DEMO — not live
+              </Text>
+              <Text style={styles.meta}>
+                Reliability {s.reliability?.score ?? '—'}
+                {s.reliability?.confidence != null ? ` · conf ${s.reliability.confidence}%` : ''}
+                {' · '}
+                {s.last_verified_at
+                  ? `verified ${new Date(s.last_verified_at).toLocaleDateString('en-IN')}`
+                  : 'unverified'}{' '}
+                · crowdsource
               </Text>
             </Pressable>
           ))}

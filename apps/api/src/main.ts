@@ -31,9 +31,9 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/', (_req, res) => {
   res.json({
     product: 'EVSaathi',
-    version: '0.1.0-phase1',
+    version: '0.2.0-phase2',
     docs: '/v1/health',
-    note: 'Phase 1 Functional MVP — no OEM live integration',
+    note: 'Phase 2 Charging Intelligence — crowdsource reliability, not OEM live integration',
   });
 });
 
@@ -48,5 +48,10 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`EVSaathi API listening on http://0.0.0.0:${port}`);
-  console.log('Phase 1: manual SOC + demo stations. OTP stub code: 123456');
+  console.log('Phase 2: reliability + reports + strategies. OTP stub: 123456');
+  console.log(
+    process.env.FCM_SERVER_KEY
+      ? 'FCM_SERVER_KEY present — push + inbox'
+      : 'FCM keys missing — in-app inbox only',
+  );
 });
