@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -10,24 +11,60 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, spacing } from './theme';
 
 export function Screen({
   children,
   style,
+  atmosphere = false,
 }: {
   children: React.ReactNode;
   style?: ViewStyle;
+  /** Soft night-road gradient behind content (Home / Login). */
+  atmosphere?: boolean;
 }) {
-  return <View style={[styles.screen, style]}>{children}</View>;
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        styles.screen,
+        { paddingTop: Math.max(insets.top, spacing[4]) },
+        atmosphere && styles.atmosphere,
+        style,
+      ]}
+    >
+      {atmosphere ? <View pointerEvents="none" style={styles.atmosphereOrb} /> : null}
+      {children}
+    </View>
+  );
 }
 
-export function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const fs = size === 'lg' ? 34 : size === 'sm' ? 18 : 24;
+export function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' | 'hero' }) {
+  const fs = size === 'hero' ? 40 : size === 'lg' ? 34 : size === 'sm' ? 18 : 24;
+  const pulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    if (size !== 'hero' && size !== 'lg') return;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1400, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 1400, useNativeDriver: false }),
+      ]),
+    ).start();
+  }, [pulse, size]);
+
   return (
-    <Text style={[styles.brand, { fontSize: fs }]}>
-      EV<Text style={{ color: colors.teal400 }}>Saathi</Text>
-    </Text>
+    <View style={styles.brandRow}>
+      <Animated.View
+        style={[
+          styles.brandNode,
+          size === 'hero' || size === 'lg' ? { opacity: pulse } : { opacity: 0.85 },
+        ]}
+      />
+      <Text style={[styles.brand, { fontSize: fs }]}>
+        EV<Text style={{ color: colors.teal400 }}>Saathi</Text>
+      </Text>
+    </View>
   );
 }
 
@@ -215,7 +252,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bgBase,
     paddingHorizontal: spacing[4],
-    paddingTop: spacing[4],
+    overflow: 'hidden',
+  },
+  atmosphere: {
+    // @ts-expect-error web CSS gradient
+    backgroundImage:
+      Platform.OS === 'web'
+        ? 'radial-gradient(120% 70% at 50% -8%, #122033 0%, #070B14 58%), linear-gradient(180deg, #0B1220 0%, #070B14 100%)'
+        : undefined,
+  },
+  atmosphereOrb: {
+    position: 'absolute',
+    top: -40,
+    alignSelf: 'center',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(46, 230, 166, 0.06)',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandNode: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.amber400,
   },
   brand: {
     fontFamily: fonts.displayBold,

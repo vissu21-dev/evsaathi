@@ -67,14 +67,14 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen>
+    <Screen atmosphere>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.wrap}>
           <View style={styles.hero}>
-            <BrandMark size="lg" />
+            <BrandMark size="hero" />
             <Text style={styles.promise}>Know your real range before you go.</Text>
             <Text style={styles.sub}>
-              Phase 1 works with manual SOC — no OEM live data invented.
+              India EV companion for XEV 9S Pack 3 and beyond. Manual SOC first — never invents LIVE data.
             </Text>
           </View>
 
