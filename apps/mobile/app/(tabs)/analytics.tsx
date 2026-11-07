@@ -43,11 +43,25 @@ type SessionAnalytics = {
   note: string;
 };
 
+type Advanced = {
+  richness: string;
+  sample_count: number;
+  adapter_sample_count: number;
+  mean_charge_power_kw: number | null;
+  peak_charge_power_kw: number | null;
+  energy_per_session_kwh: number | null;
+  estimated_cycles: number | null;
+  efficiency_trend_kwh_per_100km: number | null;
+  notes: string[];
+  data_label: string;
+};
+
 export default function AnalyticsScreen() {
   const { vehicleId } = useSession();
   const [data, setData] = useState<Analytics | null>(null);
   const [costs, setCosts] = useState<CostSummary | null>(null);
   const [sessionA, setSessionA] = useState<SessionAnalytics | null>(null);
+  const [advanced, setAdvanced] = useState<Advanced | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,13 +69,15 @@ export default function AnalyticsScreen() {
     if (!vehicleId) return;
     setError(null);
     try {
-      const [a, c, sessions] = await Promise.all([
+      const [a, c, sessions, adv] = await Promise.all([
         api<Analytics>(`/vehicles/${vehicleId}/analytics/consumption?period=week`),
         api<CostSummary>(`/costs/summary?vehicle_id=${vehicleId}`),
         api<{ data: SessionRow[] }>('/sessions'),
+        api<Advanced>(`/vehicles/${vehicleId}/analytics/advanced`),
       ]);
       setData(a);
       setCosts(c);
+      setAdvanced(adv);
       if (sessions.data[0]) {
         const sa = await api<SessionAnalytics>(`/sessions/${sessions.data[0].id}/analytics`);
         setSessionA(sa);
@@ -208,6 +224,39 @@ export default function AnalyticsScreen() {
         ) : (
           <EmptyState title="No session analytics" body="Log a charge session to inspect power metrics." />
         )}
+
+        <SectionTitle>Advanced telemetry analytics</SectionTitle>
+        {advanced ? (
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.stat}>Richness: {advanced.richness}</Text>
+              <Chip
+                label={
+                  advanced.data_label === 'recently_synchronized'
+                    ? 'SYNCED'
+                    : advanced.data_label === 'manually_entered'
+                      ? 'MANUAL'
+                      : 'EST.'
+                }
+                tone={advanced.data_label === 'recently_synchronized' ? 'synced' : 'manual'}
+              />
+            </View>
+            <Text style={styles.meta}>
+              Samples {advanced.sample_count} · adapter {advanced.adapter_sample_count} · mean power{' '}
+              {advanced.mean_charge_power_kw ?? '—'} kW · peak {advanced.peak_charge_power_kw ?? '—'} kW
+            </Text>
+            <Text style={styles.meta}>
+              Cycles ~{advanced.estimated_cycles ?? '—'} · efficiency trend{' '}
+              {advanced.efficiency_trend_kwh_per_100km ?? '—'} kWh/100km · energy/session{' '}
+              {advanced.energy_per_session_kwh ?? '—'} kWh
+            </Text>
+            {advanced.notes.map((n, i) => (
+              <Text key={i} style={styles.meta}>
+                {n}
+              </Text>
+            ))}
+          </View>
+        ) : null}
 
         <Banner text="Battery health / SOH is not shown — never invent degradation without evidence." />
       </ScrollView>

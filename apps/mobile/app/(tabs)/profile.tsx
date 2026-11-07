@@ -14,7 +14,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.pad}>
         <BrandMark />
         <SectionTitle>Profile</SectionTitle>
-        <Text style={styles.sub}>Account, notifications, Phase 2 honesty labels.</Text>
+        <Text style={styles.sub}>Account, integrations consent, AI assistant — Phase 3 honesty labels.</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>Signed in</Text>
@@ -25,18 +25,20 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <Text style={styles.label}>Active vehicle</Text>
           <Text style={styles.value}>{vehicleId?.slice(0, 8)}…</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-            <Chip label="MANUAL source" tone="manual" />
-            <Chip label="OEM: none" tone="est" />
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <Chip label="Manual forever" tone="manual" />
+            <Chip label="Demo OEM only" tone="demo" />
           </View>
         </View>
 
-        <Button title="Notification inbox" onPress={() => router.push('/notifications')} />
+        <Button title="Integrations & consent" onPress={() => router.push('/integrations')} />
+        <Button title="AI assistant" variant="amber" onPress={() => router.push('/assistant')} />
+        <Button title="Notification inbox" variant="ghost" onPress={() => router.push('/notifications')} />
 
         <Banner text={`API: ${getApiBase()}`} />
         <Banner
           tone="warn"
-          text="Phase 2: crowdsource reliability ≠ operator telemetry. Still out of scope: AI assistant, community, live OEM SOC, remote charge control, fabricated LIVE availability."
+          text="Phase 3: demo OEM/operator stubs + explainable AI. Still out of scope: fabricated LIVE SOC/availability, AI actuators, community, subscriptions."
         />
 
         <Button title="Sign out" variant="ghost" onPress={() => signOut()} />

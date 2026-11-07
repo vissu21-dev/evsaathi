@@ -85,6 +85,8 @@ export default function RootLayout() {
           <Stack.Screen name="log-session" options={{ headerShown: true, title: 'Log charge', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
           <Stack.Screen name="log-soc" options={{ headerShown: true, title: 'Update SOC', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
           <Stack.Screen name="notifications" options={{ headerShown: true, title: 'Notifications', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
+          <Stack.Screen name="integrations" options={{ headerShown: true, title: 'Integrations', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
+          <Stack.Screen name="assistant" options={{ headerShown: true, title: 'AI assistant', headerStyle: { backgroundColor: colors.bgElevated }, headerTintColor: colors.textPrimary }} />
         </Stack>
       </AuthGate>
     </SessionProvider>
