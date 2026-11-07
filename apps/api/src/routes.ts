@@ -22,6 +22,7 @@ import {
 } from './vehicle-helpers';
 import { phase2Router } from './phase2-routes';
 import { phase3Router } from './phase3-routes';
+import { phase4Router } from './phase4-routes';
 import {
   createInAppNotification,
   reliabilitySummary,
@@ -31,19 +32,23 @@ export const router = Router();
 
 router.use(phase2Router);
 router.use(phase3Router);
+router.use(phase4Router);
 
 router.get('/health', (_req, res) => {
   res.json({
     ok: true,
     product: 'EVSaathi',
-    phase: 3,
+    phase: 4,
     oem_integration: 'demo_stub_only',
     operator_integration: 'demo_stub_only',
     ai_assistant: true,
     ai_actuators: false,
+    community: true,
+    subscriptions: 'stub',
+    fleet: 'stub',
     reliability: 'crowdsource',
     notifications: process.env.FCM_SERVER_KEY ? 'fcm_and_inbox' : 'inapp_inbox_only',
-    note: 'Phase 3 Integrations + AI — demo adapters never claim LIVE; AI hard-denies actuators',
+    note: 'Phase 4 EV Ecosystem — community, reputation, health gates, stub subscriptions/fleet; no fabricated LIVE partners',
   });
 });
 
